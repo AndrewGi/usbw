@@ -20,3 +20,8 @@ impl From<rusb::Error> for Error {
         })
     }
 }
+impl From<Error> for IOError {
+    fn from(e: Error) -> Self {
+        e.0
+    }
+}
