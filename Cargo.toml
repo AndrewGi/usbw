@@ -1,9 +1,12 @@
 [package]
 name = "usbw"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["AndrewGi <andrew@gilbrough.com>"]
 edition = "2018"
-
+license = "GPL-3.0-only"
+description = "basic USB driver. So far just a wrapper for `rusb`. Planning on wrapping `libusb` later"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rusb = {version = "0.5.5"}
+driver_async = {version="0.0.2", path="../../async_driver"}
