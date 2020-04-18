@@ -1,4 +1,4 @@
-use crate::device::DeviceList;
+use crate::device::{DeviceHandle, DeviceIdentifier, DeviceList};
 use crate::error::Error;
 use rusb::UsbContext;
 
@@ -11,7 +11,13 @@ impl Manager {
             context: rusb::Context::new()?,
         })
     }
-    pub fn devices<'a>(&self) -> Result<DeviceList, Error> {
+    pub fn devices(&self) -> Result<DeviceList, Error> {
         Ok(self.context.devices()?.into())
+    }
+    /// Option a USB device by Product ID and Vendor ID.
+    pub fn open_device(&self, id: DeviceIdentifier) -> Option<DeviceHandle> {
+        self.context
+            .open_device_with_vid_pid(id.vid, id.pid)
+            .map(DeviceHandle::from)
     }
 }

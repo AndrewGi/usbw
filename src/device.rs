@@ -1,5 +1,7 @@
 use crate::error::Error;
 use crate::version::Version;
+use rusb::Context;
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
 pub struct DeviceIdentifier {
     pub vid: u16,
@@ -49,13 +51,13 @@ impl From<rusb::DeviceDescriptor> for Descriptor {
     }
 }
 #[derive(Debug)]
-pub struct PossibleDevice(rusb::Device<rusb::Context>);
-impl From<rusb::Device<rusb::Context>> for PossibleDevice {
+pub struct Device(rusb::Device<rusb::Context>);
+impl From<rusb::Device<rusb::Context>> for Device {
     fn from(d: rusb::Device<rusb::Context>) -> Self {
         Self(d)
     }
 }
-impl PossibleDevice {
+impl Device {
     pub fn device_descriptor(&self) -> Result<Descriptor, Error> {
         let descriptor = self.0.device_descriptor()?;
         Ok(descriptor.into())
@@ -80,9 +82,17 @@ impl<'a> From<rusb::Devices<'a, rusb::Context>> for PossibleDevices<'a> {
     }
 }
 impl<'a> Iterator for PossibleDevices<'a> {
-    type Item = PossibleDevice;
+    type Item = Device;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|d| d.into())
+    }
+}
+
+pub struct DeviceHandle(rusb::DeviceHandle<rusb::Context>);
+
+impl From<rusb::DeviceHandle<rusb::Context>> for DeviceHandle {
+    fn from(handle: rusb::DeviceHandle<Context>) -> Self {
+        DeviceHandle(handle)
     }
 }
