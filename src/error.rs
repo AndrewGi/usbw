@@ -1,4 +1,4 @@
-use driver_async::error::IOError;
+use crate::error::IOError;
 pub struct Error(pub IOError);
 impl From<rusb::Error> for Error {
     fn from(e: rusb::Error) -> Self {

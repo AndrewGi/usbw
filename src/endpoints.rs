@@ -1,5 +1,5 @@
 //! USB HCI Endpoints. Used Internally.
-use driver_async::ConversionError;
+use crate::ConversionError;
 use core::convert::TryFrom;
 
 #[repr(u8)]

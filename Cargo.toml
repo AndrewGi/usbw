@@ -9,4 +9,6 @@ description = "basic USB driver. So far just a wrapper for `rusb`. Planning on w
 
 [dependencies]
 rusb = {version = "0.5.5"}
-driver_async = {version="0.0.2", path="../../async_driver"}
+futures_util = {version = "0.3.4", default_features = false}
+# Planning on removing depenences from driver_async
+#driver_async = {version="0.0.2", path="../../async_driver"}
