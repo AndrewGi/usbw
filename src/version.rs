@@ -11,7 +11,6 @@ impl From<Version> for u16 {
         v.0
     }
 }
-pub mod versions {}
 impl Version {
     /// Creates a new USB BCD (Binary Coded Decimal) Version in the format `A.B.C`, where `A` is
     /// the major, `B` is the minor, and `C` is the sub minor. `A` is 8 bits while `B` and `C` are
@@ -23,7 +22,7 @@ impl Version {
             minor <= 0x0F_u8 && sub_minor < 0x0F_u8,
             "minor or sub_minor greater than 0x0F"
         );
-        Version(u16::from(major << 8) | u16::from(minor << 4) | u16::from(sub_minor))
+        Version(u16::from(major) << 8 | u16::from(minor << 4) | u16::from(sub_minor))
     }
     pub const fn major(self) -> u8 {
         ((self.0 & 0xFF00_u16) >> 8) as u8
@@ -33,10 +32,5 @@ impl Version {
     }
     pub const fn sub_minor(self) -> u8 {
         (self.0 & 0x000F_u16) as u8
-    }
-}
-impl From<rusb::Version> for Version {
-    fn from(v: rusb::Version) -> Self {
-        Version::new(v.0, v.1, v.2)
     }
 }
