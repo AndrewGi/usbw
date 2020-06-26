@@ -1,10 +1,14 @@
 use crate::version::Version;
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
+pub struct VendorID(pub u16);
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
+pub struct ProductID(pub u16);
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
 pub struct DeviceIdentifier {
-    pub vid: u16,
-    pub pid: u16,
+    pub vid: VendorID,
+    pub pid: ProductID,
 }
 pub struct StringIndices {
     pub manufacturer: Option<u8>,

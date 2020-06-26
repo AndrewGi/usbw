@@ -10,12 +10,13 @@ description = "basic USB driver. So far just a wrapper for `rusb`. Planning on w
 [features]
 std = []
 default = ["libusb"]
-libusb = ["libusb1-sys", "std"]
+libusb = ["libusb1-sys", "std", "libc"]
 winusb = ["winapi/winusb", "std"]
 
 [dependencies]
 
 winapi = {version = "0.3.8", default_features = false, optional = true}
+libc = {version = "0.2.71", default_features = false, optional = true}
 libusb1-sys = {version = "0.3.7", default_features = false, optional = true}
 futures-util = {version = "0.3.4", default_features = false}
 # Planning on removing depenences from driver_async

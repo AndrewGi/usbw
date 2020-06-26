@@ -1,8 +1,21 @@
+use crate::libusb::error::Error;
+
 #[derive(Debug)]
 pub struct Device(core::ptr::NonNull<libusb1_sys::libusb_device>);
 impl Device {
     pub const unsafe fn from_libusb(ptr: core::ptr::NonNull<libusb1_sys::libusb_device>) -> Device {
         Device(ptr)
+    }
+    pub fn open(&self) -> Result<DeviceHandle, Error> {
+        let mut out = core::ptr::null_mut();
+        try_unsafe!(libusb1_sys::libusb_open(self.0.as_ptr(), &mut out));
+        Ok(DeviceHandle(
+            core::ptr::NonNull::new(out).expect("null libusb device handle ptr"),
+        ))
+    }
+    /// Leak the `Device` without calling `libusb_unref_device`.
+    pub fn leak(self) {
+        core::mem::forget(self)
     }
     pub fn libusb_ptr(&self) -> core::ptr::NonNull<libusb1_sys::libusb_device> {
         self.0
@@ -20,13 +33,16 @@ impl Drop for Device {
     }
 }
 pub struct DeviceHandle(core::ptr::NonNull<libusb1_sys::libusb_device_handle>);
-impl DeviceHandle {}
+impl DeviceHandle {
+    pub fn close(self) {
+        drop(self)
+    }
+}
 impl Drop for DeviceHandle {
     fn drop(&mut self) {
         unsafe { libusb1_sys::libusb_close(self.0.as_ptr()) }
     }
 }
-
 #[derive(Debug)]
 pub struct DeviceList {
     ptr: core::ptr::NonNull<*mut libusb1_sys::libusb_device>,
