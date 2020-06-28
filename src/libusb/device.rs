@@ -6,6 +6,9 @@ impl Device {
     pub const unsafe fn from_libusb(ptr: core::ptr::NonNull<libusb1_sys::libusb_device>) -> Device {
         Device(ptr)
     }
+    pub fn device_address(&self) -> u8 {
+        unsafe { libusb1_sys::libusb_get_device_address(self.0.as_ptr()) }
+    }
     pub fn open(&self) -> Result<DeviceHandle, Error> {
         let mut out = core::ptr::null_mut();
         try_unsafe!(libusb1_sys::libusb_open(self.0.as_ptr(), &mut out));
@@ -34,8 +37,21 @@ impl Drop for Device {
 }
 pub struct DeviceHandle(core::ptr::NonNull<libusb1_sys::libusb_device_handle>);
 impl DeviceHandle {
+    pub fn set_auto_detach_kernel_driver(&self) -> Result<(), Error> {
+        try_unsafe!(libusb1_sys::libusb_set_auto_detach_kernel_driver(self.0.as))
+    }
+    pub fn get_configuration(&self) -> u8 {
+        let mut out = 0;
+        try_unsafe!(libusb1_sys::libusb_get_config_descriptor(self.0.as_ptr(self.0.as_ptr(, &mut out))));
+        debug_assert!(out <= 0xFF, "bConfigurationValue overflow");
+        out as u8
+    }
     pub fn close(self) {
         drop(self)
+    }
+    pub fn reset(&self) -> Result<(), Error> {
+        try_unsafe!(libusb1_sys::libusb_reset_device(self.0.as_ptr()));
+        Ok(())
     }
 }
 impl Drop for DeviceHandle {

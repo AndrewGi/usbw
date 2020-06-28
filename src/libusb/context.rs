@@ -22,6 +22,9 @@ impl Context {
         try_unsafe!(libusb1_sys::libusb_init(&mut context));
         Ok(Context(context))
     }
+    pub fn leak(self) {
+        core::mem::forget(self)
+    }
     pub fn default() -> Result<Context, Error> {
         // NOOP if default Context already exists
         try_unsafe!(libusb1_sys::libusb_init(core::ptr::null_mut()));
@@ -65,7 +68,7 @@ impl Context {
         device_class: Option<u8>,
     ) -> Result<(), Error>
     where
-        F: FnMut(&mut Device, hotplug::Event) -> bool + Send + 'static,
+        F: FnMut(&mut Context, &mut Device, hotplug::Event) -> bool + Send + 'static,
     {
         extern "system" fn call_closure<F>(
             _context: *mut libusb1_sys::libusb_context,
@@ -74,19 +77,21 @@ impl Context {
             closure: *mut core::ffi::c_void,
         ) -> i32
         where
-            F: FnMut(&mut Device, hotplug::Event) -> bool + Send + 'static,
+            F: FnMut(&mut Context, &mut Device, hotplug::Event) -> bool + Send + 'static,
         {
             let event = match event {
                 1 => hotplug::Event::DeviceArrived,
                 2 => hotplug::Event::DeviceLeft,
                 _ => hotplug::Event::Both,
             };
+            let mut context = Context(context);
             let closure = closure as *mut F;
             let mut device =
                 unsafe { Device::from_libusb(core::ptr::NonNull::new_unchecked(device)) };
-            let r = unsafe { &mut *closure }(&mut device, event);
+            let r = unsafe { &mut *closure }(&mut context, &mut device, event);
             // We don't wanna libusb_unref_device the device pointer (hotplug callbacks aren't expected to)
             device.leak();
+            context.leak();
             if r {
                 0
             } else {
