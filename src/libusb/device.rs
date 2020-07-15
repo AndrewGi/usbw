@@ -1,3 +1,4 @@
+use crate::libusb::device_handle::DeviceHandle;
 use crate::libusb::error::Error;
 
 #[derive(Debug)]
@@ -12,9 +13,8 @@ impl Device {
     pub fn open(&self) -> Result<DeviceHandle, Error> {
         let mut out = core::ptr::null_mut();
         try_unsafe!(libusb1_sys::libusb_open(self.0.as_ptr(), &mut out));
-        Ok(DeviceHandle(
-            core::ptr::NonNull::new(out).expect("null libusb device handle ptr"),
-        ))
+        debug_assert!(!out.is_null(), "null libusb device handle ptr");
+        Ok(unsafe { DeviceHandle::from_libusb(core::ptr::NonNull::new_unchecked(out)) })
     }
     /// Leak the `Device` without calling `libusb_unref_device`.
     pub fn leak(self) {
@@ -35,30 +35,7 @@ impl Drop for Device {
         unsafe { libusb1_sys::libusb_unref_device(self.0.as_ptr()) }
     }
 }
-pub struct DeviceHandle(core::ptr::NonNull<libusb1_sys::libusb_device_handle>);
-impl DeviceHandle {
-    pub fn set_auto_detach_kernel_driver(&self) -> Result<(), Error> {
-        try_unsafe!(libusb1_sys::libusb_set_auto_detach_kernel_driver(self.0.as))
-    }
-    pub fn get_configuration(&self) -> u8 {
-        let mut out = 0;
-        try_unsafe!(libusb1_sys::libusb_get_config_descriptor(self.0.as_ptr(self.0.as_ptr(, &mut out))));
-        debug_assert!(out <= 0xFF, "bConfigurationValue overflow");
-        out as u8
-    }
-    pub fn close(self) {
-        drop(self)
-    }
-    pub fn reset(&self) -> Result<(), Error> {
-        try_unsafe!(libusb1_sys::libusb_reset_device(self.0.as_ptr()));
-        Ok(())
-    }
-}
-impl Drop for DeviceHandle {
-    fn drop(&mut self) {
-        unsafe { libusb1_sys::libusb_close(self.0.as_ptr()) }
-    }
-}
+
 #[derive(Debug)]
 pub struct DeviceList {
     ptr: core::ptr::NonNull<*mut libusb1_sys::libusb_device>,

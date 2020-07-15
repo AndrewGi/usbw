@@ -2,7 +2,7 @@ pub fn main() -> Result<(), usbw::libusb::error::Error> {
     println!("start");
     let context = usbw::libusb::context::Context::new()?;
     context.hotplug_register_callback(
-        |d, e| {
+        |_context, d, e| {
             println!("{:?} {:?}", d, e);
             true
         },

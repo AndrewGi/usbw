@@ -1,11 +1,12 @@
-use crate::libusb::device::DeviceHandle;
+#![allow(unused_variables)]
+use crate::libusb::device_handle::DeviceHandle;
 
 pub struct DevMem {
     ptr: core::ptr::NonNull<u8>,
     len: usize,
 }
 impl DevMem {
-    pub fn new(device_handle: DeviceHandle, len: usize) -> Option<DevMem> {
+    pub fn new(_device_handle: DeviceHandle, _len: usize) -> Option<DevMem> {
         unimplemented!("libusb1_sys is missing dev_mem_alloc and free")
     }
 }

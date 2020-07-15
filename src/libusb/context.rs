@@ -71,7 +71,7 @@ impl Context {
         F: FnMut(&mut Context, &mut Device, hotplug::Event) -> bool + Send + 'static,
     {
         extern "system" fn call_closure<F>(
-            _context: *mut libusb1_sys::libusb_context,
+            context: *mut libusb1_sys::libusb_context,
             device: *mut libusb1_sys::libusb_device,
             event: libusb1_sys::libusb_hotplug_event,
             closure: *mut core::ffi::c_void,

@@ -11,7 +11,9 @@ pub enum Status {
     NoDevice,
     Overflow,
 }
-
+/// [`Transfer`] tries to be a lightweight safe abstraction over [`libusb1_sys::libusb_transfer`].
+/// Only a limited subset of actions are safe on the libusb_transfer. Stuff like setting the data
+/// pointer are unsafe or should be abstracted over (like `SafeTransfer`).
 #[derive(Debug)]
 pub struct Transfer(core::ptr::NonNull<libusb1_sys::libusb_transfer>);
 impl Transfer {
@@ -23,6 +25,7 @@ impl Transfer {
             .expect("null libusb transfer ptr"),
         )
     }
+    /// Allows access to the inner [`libusb1_sys::libusb_transfer`] internals.
     pub fn libusb_inner(&self) -> core::ptr::NonNull<libusb1_sys::libusb_transfer> {
         self.0
     }
@@ -35,10 +38,7 @@ impl Transfer {
         Ok(())
     }
     pub fn set_stream_id(&self, id: u32) {
-        try_unsafe!(libusb1_sys::libusb_transfer_set_stream_id(
-            self.0.as_ptr(),
-            id
-        ))
+        unsafe { libusb1_sys::libusb_transfer_set_stream_id(self.0.as_ptr(), id) }
     }
     pub fn get_stream_id(&self) -> u32 {
         unsafe { libusb1_sys::libusb_transfer_get_stream_id(self.0.as_ptr()) }
