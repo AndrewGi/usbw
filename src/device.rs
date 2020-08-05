@@ -7,8 +7,8 @@ pub struct VendorID(pub u16);
 pub struct ProductID(pub u16);
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
 pub struct DeviceIdentifier {
-    pub vid: VendorID,
-    pub pid: ProductID,
+    pub vendor_id: VendorID,
+    pub product_id: ProductID,
 }
 pub struct StringIndices {
     pub manufacturer: Option<u8>,

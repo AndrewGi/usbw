@@ -1,3 +1,5 @@
+use crate::libusb::config_descriptor::ConfigDescriptor;
+use crate::libusb::device_descriptor::DeviceDescriptor;
 use crate::libusb::device_handle::DeviceHandle;
 use crate::libusb::error::Error;
 
@@ -7,8 +9,29 @@ impl Device {
     pub const unsafe fn from_libusb(ptr: core::ptr::NonNull<libusb1_sys::libusb_device>) -> Device {
         Device(ptr)
     }
+
+    pub fn active_config_descriptor(&self) -> Result<ConfigDescriptor, Error> {
+        let mut out: *const libusb1_sys::libusb_config_descriptor = core::ptr::null_mut();
+        try_unsafe!(libusb1_sys::libusb_get_active_config_descriptor(
+            self.0.as_ptr(),
+            &mut out as *mut _
+        ));
+        Ok(unsafe {
+            ConfigDescriptor::from_libusb(core::ptr::NonNull::new_unchecked(out as *mut _))
+        })
+    }
     pub fn device_address(&self) -> u8 {
         unsafe { libusb1_sys::libusb_get_device_address(self.0.as_ptr()) }
+    }
+
+    pub fn device_descriptor(&self) -> Result<DeviceDescriptor, Error> {
+        let mut out: core::mem::MaybeUninit<libusb1_sys::libusb_device_descriptor> =
+            core::mem::MaybeUninit::uninit();
+        try_unsafe!(libusb1_sys::libusb_get_device_descriptor(
+            self.0.as_ptr() as *const _,
+            out.as_mut_ptr()
+        ));
+        Ok(unsafe { DeviceDescriptor::from(out.assume_init()) })
     }
     pub fn open(&self) -> Result<DeviceHandle, Error> {
         let mut out = core::ptr::null_mut();
@@ -48,6 +71,9 @@ impl DeviceList {
     ) -> DeviceList {
         DeviceList { ptr, len }
     }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
     pub fn len(&self) -> usize {
         self.len
     }
@@ -56,14 +82,15 @@ impl DeviceList {
             Some(unsafe {
                 let ptr = *self.ptr.as_ptr().add(pos);
                 debug_assert!(!ptr.is_null(), "null device ptr");
+                libusb1_sys::libusb_ref_device(ptr);
                 Device::from_libusb(core::ptr::NonNull::new_unchecked(ptr))
             })
         } else {
             None
         }
     }
-    pub fn iter(&self) -> DeviceListIter {
-        DeviceListIter::new(self)
+    pub fn iter(&self) -> DeviceListIter<'_> {
+        DeviceListIter { list: self, pos: 0 }
     }
 }
 impl Drop for DeviceList {
@@ -71,21 +98,9 @@ impl Drop for DeviceList {
         unsafe { libusb1_sys::libusb_free_device_list(self.ptr.as_ptr(), 1) }
     }
 }
-#[derive(Copy, Clone, Debug)]
 pub struct DeviceListIter<'a> {
-    list: &'a DeviceList,
+    pub list: &'a DeviceList,
     pos: usize,
-}
-impl<'a> DeviceListIter<'a> {
-    pub fn new(list: &'a DeviceList) -> DeviceListIter {
-        DeviceListIter { list, pos: 0 }
-    }
-    pub fn list(&self) -> &'a DeviceList {
-        self.list
-    }
-    pub fn remaining(&self) -> usize {
-        self.list.len - self.pos
-    }
 }
 impl<'a> core::iter::Iterator for DeviceListIter<'a> {
     type Item = Device;
@@ -94,7 +109,7 @@ impl<'a> core::iter::Iterator for DeviceListIter<'a> {
         if self.pos >= self.list.len() {
             None
         } else {
-            let out = self.list.get(self.pos)?;
+            let out = unsafe { self.list.get(self.pos)? };
             self.pos += 1;
             Some(out)
         }

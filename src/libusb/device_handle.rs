@@ -1,6 +1,9 @@
+use crate::libusb::device::Device;
+use crate::libusb::device_descriptor::DeviceDescriptor;
 use crate::libusb::error;
 use crate::libusb::error::Error;
 use core::convert::TryInto;
+
 #[derive(Debug)]
 pub struct DeviceHandle(core::ptr::NonNull<libusb1_sys::libusb_device_handle>);
 unsafe impl Send for DeviceHandle {}
@@ -12,6 +15,13 @@ impl Drop for DeviceHandle {
 }
 
 impl DeviceHandle {
+    pub fn device(&self) -> Device {
+        unsafe {
+            let ptr = libusb1_sys::libusb_get_device(self.0.as_ptr());
+            libusb1_sys::libusb_ref_device(ptr);
+            Device::from_libusb(core::ptr::NonNull::new_unchecked(ptr))
+        }
+    }
     pub fn set_auto_detach_kernel_driver(&self, enabled: bool) -> Result<(), Error> {
         try_unsafe!(libusb1_sys::libusb_set_auto_detach_kernel_driver(
             self.0.as_ptr(),
@@ -231,6 +241,40 @@ impl DeviceHandle {
                 err => Err(error::from_libusb(err)),
             }
         }
+    }
+    pub fn claim_interface(&self, interface: u8) -> Result<(), Error> {
+        try_unsafe!(libusb1_sys::libusb_claim_interface(
+            self.0.as_ptr(),
+            interface.into()
+        ));
+        Ok(())
+    }
+    pub fn release_interface(&self, interface: u8) -> Result<(), Error> {
+        try_unsafe!(libusb1_sys::libusb_release_interface(
+            self.0.as_ptr(),
+            interface.into()
+        ));
+        Ok(())
+    }
+    pub fn read_string_descriptor_ascii(&self, index: u8) -> Result<String, Error> {
+        let mut out = Vec::<u8>::with_capacity(255);
+
+        let ptr = out.as_mut_ptr() as *mut u8;
+        let capacity = out.capacity() as i32;
+
+        let res = unsafe {
+            libusb1_sys::libusb_get_string_descriptor_ascii(self.0.as_ptr(), index, ptr, capacity)
+        };
+
+        if res < 0 {
+            return Err(error::from_libusb(res));
+        }
+
+        unsafe {
+            out.set_len(res as usize);
+        }
+
+        String::from_utf8(out).map_err(|_| Error::Other)
     }
     pub const unsafe fn from_libusb(
         ptr: core::ptr::NonNull<libusb1_sys::libusb_device_handle>,

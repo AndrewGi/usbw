@@ -14,6 +14,12 @@ pub enum LogLevel {
     Debug = 4,
 }
 static DEFAULT_CONTEXT_COUNT: AtomicUsize = AtomicUsize::new(0);
+pub unsafe fn default_context_reference_counter() -> &'static AtomicUsize {
+    &DEFAULT_CONTEXT_COUNT
+}
+pub fn default_context() -> Result<Context, Error> {
+    Context::default()
+}
 #[derive(Debug)]
 pub struct Context(*mut libusb1_sys::libusb_context);
 impl Context {
@@ -120,12 +126,11 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 impl Drop for Context {
     fn drop(&mut self) {
-        if self.0.is_null() {
-            if DEFAULT_CONTEXT_COUNT.fetch_sub(1, Ordering::SeqCst) != 0 {
-                // Not ready to exit default context
-                return;
-            };
+        if self.0.is_null() && DEFAULT_CONTEXT_COUNT.fetch_sub(1, Ordering::SeqCst) != 0 {
+            // Not ready to exit default context
+            return;
         }
+
         unsafe { libusb1_sys::libusb_exit(self.0) }
     }
 }
