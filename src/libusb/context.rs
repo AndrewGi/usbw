@@ -1,4 +1,5 @@
 use crate::device::{ProductID, VendorID};
+use crate::libusb::asyncs::AsyncContext;
 use crate::libusb::device::{Device, DeviceList};
 use crate::libusb::error::Error;
 use crate::libusb::hotplug;
@@ -66,6 +67,9 @@ impl Context {
         };
         try_unsafe!(libusb1_sys::libusb_handle_events_timeout(self.0, &time));
         Ok(())
+    }
+    pub fn start_async(self) -> AsyncContext {
+        AsyncContext::start(self)
     }
     /// Register a hotplug callback. `F` must keep returning `true` for as long as it lives and then
     /// either deregister the callback handle or return `false` from `F`.

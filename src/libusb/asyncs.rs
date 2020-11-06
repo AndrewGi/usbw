@@ -1,4 +1,6 @@
+use crate::libusb::async_device::AsyncDevice;
 use crate::libusb::context::Context;
+use crate::libusb::device_handle::DeviceHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -33,6 +35,12 @@ impl AsyncContext {
     }
     pub fn context_arc(&self) -> Arc<Context> {
         self.context.clone()
+    }
+    /// WARNING!!: If the device belongs to another context, async operations on that device will
+    /// just block. This function is a no-op just to make sure a `AsyncContext` is running. It does
+    /// not check to make sure it owns the handle. Proceed at own risk.
+    pub fn make_async_device(&self, handle: DeviceHandle) -> AsyncDevice {
+        AsyncDevice { handle }
     }
 }
 impl Drop for AsyncContext {

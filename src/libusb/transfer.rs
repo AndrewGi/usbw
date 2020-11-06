@@ -64,6 +64,20 @@ impl From<TransferType> for u8 {
         t as u8
     }
 }
+impl TryFrom<u8> for TransferType {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(TransferType::Control),
+            1 => Ok(TransferType::Isochronous),
+            2 => Ok(TransferType::Bulk),
+            3 => Ok(TransferType::Interrupt),
+            4 => Ok(TransferType::Stream),
+            _ => Err(()),
+        }
+    }
+}
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
 pub enum Flag {
     ShortNotOk = 0,
@@ -165,11 +179,32 @@ impl Transfer {
         self.libusb_mut().flags = 0;
     }
     pub fn fill_control(&mut self, device: &DeviceHandle) {
-        let inner = unsafe { self.libusb_mut() };
+        let inner = self.libusb_mut();
         inner.transfer_type = TransferType::Control.into();
         inner.endpoint = 0;
         inner.num_iso_packets = 0;
         inner.dev_handle = device.inner().as_ptr();
+    }
+    pub fn set_callback(&mut self, new_callback: libusb1_sys::libusb_transfer_cb_fn) {
+        self.libusb_mut().callback = new_callback
+    }
+    pub fn get_type(&self) -> TransferType {
+        self.libusb_ref()
+            .transfer_type
+            .try_into()
+            .expect("invalid transfer type")
+    }
+    pub fn set_type(&mut self, transfer_type: TransferType) {
+        self.libusb_mut().transfer_type = transfer_type.into();
+    }
+    pub fn get_callback(&self) -> libusb1_sys::libusb_transfer_cb_fn {
+        self.libusb_ref().callback
+    }
+    pub fn set_endpoint(&mut self, new_endpoint: u8) {
+        self.libusb_mut().endpoint = new_endpoint;
+    }
+    pub fn get_endpoint(&self) -> u8 {
+        self.libusb_ref().endpoint
     }
     /// Checks `.status()` to make sure its `Status::Completed` before returning `Ok(actual_length)`.
     /// If `.status()` is not `Status::Completed`, it will return a `Err(status_error)`

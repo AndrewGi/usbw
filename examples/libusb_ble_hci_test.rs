@@ -35,7 +35,7 @@ pub fn bluetooth_adapters<'a>(
 }
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut runtime = tokio::runtime::Builder::new()
+    let mut runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("can't make async runtime");
@@ -53,7 +53,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("opening first device...");
     let mut devices = bluetooth_adapters(device_list.iter());
-    let adapter = loop {
+    let handle = loop {
         let device = devices
             .next()
             .ok_or_else(|| String::from("Device Not Found"))??;
@@ -64,13 +64,14 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             Err(e) => Err(e)?,
         }
     };
-
-    let mut adapter = adapter;
+    let context = context.start_async();
+    let handle = context.make_async_device(handle);
+    let mut adapter = handle;
     println!("reset");
-    adapter.reset()?;
+    adapter.handle_ref().reset()?;
     println!("active configuration {:?}", adapter.active_configuration());
     println!("claim");
-    adapter.claim_interface(0)?;
+    adapter.handle_mut().claim_interface(0)?;
     adapter.control_write(
         0x20,
         0,
