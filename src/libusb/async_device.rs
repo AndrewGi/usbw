@@ -83,7 +83,7 @@ impl AsyncDevice {
         // Allocate Transfer
         let mut transfer = Transfer::new(0);
         // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
-        let mut buf = Vec::with_capacity(data.len() + ControlSetup::SIZE).into_boxed_slice();
+        let mut buf = vec![0; (data.len() + ControlSetup::SIZE)].into_boxed_slice();
         // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
@@ -131,7 +131,7 @@ impl AsyncDevice {
         // Allocate Transfer
         let mut transfer = Transfer::new(0);
         // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
-        let mut buf = Vec::with_capacity(data.len() + ControlSetup::SIZE).into_boxed_slice();
+        let mut buf = vec![0; (data.len() + ControlSetup::SIZE)].into_boxed_slice();
         // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
@@ -186,6 +186,7 @@ impl AsyncDevice {
         transfer.set_timeout(timeout);
         transfer.set_type(bulk_type.transfer_type());
         transfer.set_endpoint(endpoint);
+        transfer.set_device(&self.handle);
         transfer.set_callback(Self::system_callback);
         transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
         // Set buffer
@@ -222,19 +223,22 @@ impl AsyncDevice {
         transfer.clear_flags();
         transfer.set_timeout(timeout);
         transfer.set_type(bulk_type.transfer_type());
+        transfer.set_endpoint(endpoint);
+        transfer.set_device(&self.handle);
         transfer.set_callback(Self::system_callback);
         transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
         // Set buffer
-        transfer.set_buffer(data.as_mut_ptr(), data.len());
+        let transfer = SafeTransfer::new(transfer, data);
         // Fill transfer with control parameters
-
+        println!("submiting");
         // Send the transfer off
-        unsafe { transfer.submit() }?;
+        unsafe { transfer.transfer_ref().submit() }?;
+        println!("submitted");
         // TODO: Check if sender is dropped
         completed_wait
             .await
             .expect("sender was dropped, Andrew need to fix this");
-        let len = transfer.try_actual_length()? as usize;
+        let len = transfer.transfer_ref().try_actual_length()? as usize;
         Ok(len)
     }
     pub async fn bulk_write(

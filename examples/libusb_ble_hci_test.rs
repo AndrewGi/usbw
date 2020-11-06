@@ -69,24 +69,32 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     let mut adapter = handle;
     println!("reset");
     adapter.handle_ref().reset()?;
-    println!("active configuration {:?}", adapter.active_configuration());
+    println!(
+        "active configuration {:?}",
+        adapter.handle_ref().active_configuration()
+    );
     println!("claim");
     adapter.handle_mut().claim_interface(0)?;
-    adapter.control_write(
-        0x20,
-        0,
-        0,
-        0,
-        &[0x03, 0x0C, 0x00],
-        core::time::Duration::from_secs(1),
-    )?;
+    println!("write!");
+    let n = adapter
+        .control_write(
+            0x20,
+            0,
+            0,
+            0,
+            &[0x03, 0x0C, 0x00],
+            core::time::Duration::from_secs(1),
+        )
+        .await?;
     println!("reading a byte");
     let mut out = [0; 7];
-    adapter.interrupt_read(
-        HCI_EVENT_ENDPOINT,
-        &mut out,
-        core::time::Duration::from_secs(1),
-    )?;
+    adapter
+        .interrupt_read(
+            HCI_EVENT_ENDPOINT,
+            &mut out,
+            core::time::Duration::from_secs(1),
+        )
+        .await?;
     println!("out {:?}", out);
     Ok(())
 }

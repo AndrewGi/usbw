@@ -178,12 +178,21 @@ impl Transfer {
     pub fn clear_flags(&mut self) {
         self.libusb_mut().flags = 0;
     }
+    pub fn set_device(&mut self, device: &DeviceHandle) {
+        self.libusb_mut().dev_handle = device.inner().as_ptr();
+    }
     pub fn fill_control(&mut self, device: &DeviceHandle) {
         let inner = self.libusb_mut();
         inner.transfer_type = TransferType::Control.into();
         inner.endpoint = 0;
         inner.num_iso_packets = 0;
         inner.dev_handle = device.inner().as_ptr();
+    }
+    pub fn set_num_iso_packets(&mut self, num: usize) {
+        self.libusb_mut().num_iso_packets = num as i32;
+    }
+    pub fn get_num_iso_packets(&self) -> usize {
+        self.libusb_ref().num_iso_packets as usize
     }
     pub fn set_callback(&mut self, new_callback: libusb1_sys::libusb_transfer_cb_fn) {
         self.libusb_mut().callback = new_callback
