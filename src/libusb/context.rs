@@ -22,6 +22,8 @@ pub fn default_context() -> Result<Context, Error> {
 }
 #[derive(Debug)]
 pub struct Context(*mut libusb1_sys::libusb_context);
+unsafe impl Send for Context {}
+unsafe impl Sync for Context {}
 impl Context {
     pub fn new() -> Result<Context, Error> {
         let mut context = core::ptr::null_mut();
@@ -36,6 +38,9 @@ impl Context {
         try_unsafe!(libusb1_sys::libusb_init(core::ptr::null_mut()));
         DEFAULT_CONTEXT_COUNT.fetch_add(1, Ordering::SeqCst);
         Ok(Context(core::ptr::null_mut()))
+    }
+    pub fn is_default(&self) -> bool {
+        self.0.is_null()
     }
     pub fn set_debug(&self, level: LogLevel) {
         unsafe { libusb1_sys::libusb_set_debug(self.0, level as i32) }
@@ -122,11 +127,9 @@ impl Context {
         Ok(())
     }
 }
-unsafe impl Send for Context {}
-unsafe impl Sync for Context {}
 impl Drop for Context {
     fn drop(&mut self) {
-        if self.0.is_null() && DEFAULT_CONTEXT_COUNT.fetch_sub(1, Ordering::SeqCst) != 0 {
+        if self.is_default() && DEFAULT_CONTEXT_COUNT.fetch_sub(1, Ordering::SeqCst) != 0 {
             // Not ready to exit default context
             return;
         }

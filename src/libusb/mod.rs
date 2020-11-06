@@ -1,5 +1,6 @@
 #[macro_use]
 pub mod error;
+pub mod async_device;
 pub mod asyncs;
 pub mod buffer;
 pub mod config_descriptor;
@@ -11,6 +12,7 @@ pub mod dma;
 pub mod endpoint_descriptor;
 pub mod hotplug;
 pub mod interface_descriptor;
+pub mod interfaces;
 pub mod speed;
 pub mod transfer;
 pub mod version;

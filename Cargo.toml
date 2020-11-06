@@ -21,3 +21,6 @@ libusb1-sys = {version = "0.3.7", default_features = false, optional = true}
 futures-util = {version = "0.3.4", default_features = false}
 # Planning on removing depenences from driver_async
 driver_async = {version="0.0.2", path="../BluetoothMeshRust/async_driver"}
+
+[dev-dependencies]
+tokio = "0.3"

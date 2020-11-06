@@ -1,36 +1,66 @@
 use crate::libusb::device::Device;
-use crate::libusb::device_descriptor::DeviceDescriptor;
 use crate::libusb::error;
 use crate::libusb::error::Error;
+use crate::libusb::interfaces::ClaimedInterfaces;
 use core::convert::TryInto;
 
 #[derive(Debug)]
-pub struct DeviceHandle(core::ptr::NonNull<libusb1_sys::libusb_device_handle>);
+pub struct DeviceHandle {
+    handle: core::ptr::NonNull<libusb1_sys::libusb_device_handle>,
+    interfaces: ClaimedInterfaces,
+}
 unsafe impl Send for DeviceHandle {}
 unsafe impl Sync for DeviceHandle {}
 impl Drop for DeviceHandle {
     fn drop(&mut self) {
-        unsafe { libusb1_sys::libusb_close(self.0.as_ptr()) }
+        unsafe {
+            while let Some(i) = self.interfaces.next() {
+                unsafe { libusb1_sys::libusb_release_interface(self.handle.as_ptr(), i.into()) };
+            }
+            libusb1_sys::libusb_close(self.handle.as_ptr())
+        }
     }
 }
 
 impl DeviceHandle {
     pub fn device(&self) -> Device {
         unsafe {
-            let ptr = libusb1_sys::libusb_get_device(self.0.as_ptr());
+            let ptr = libusb1_sys::libusb_get_device(self.handle.as_ptr());
             libusb1_sys::libusb_ref_device(ptr);
             Device::from_libusb(core::ptr::NonNull::new_unchecked(ptr))
         }
     }
+    pub fn inner(&self) -> core::ptr::NonNull<libusb1_sys::libusb_device_handle> {
+        self.handle
+    }
+
+    /// Returns the active configuration number.
+    pub fn active_configuration(&self) -> Result<u8, Error> {
+        let mut config = 0;
+        try_unsafe!(libusb1_sys::libusb_get_configuration(
+            self.handle.as_ptr(),
+            &mut config
+        ));
+        Ok(config as u8)
+    }
+
+    /// Sets the device's active configuration.
+    pub fn set_active_configuration(&mut self, config: u8) -> Result<(), Error> {
+        try_unsafe!(libusb1_sys::libusb_set_configuration(
+            self.handle.as_ptr(),
+            config.into()
+        ));
+        Ok(())
+    }
     pub fn set_auto_detach_kernel_driver(&self, enabled: bool) -> Result<(), Error> {
         try_unsafe!(libusb1_sys::libusb_set_auto_detach_kernel_driver(
-            self.0.as_ptr(),
+            self.handle.as_ptr(),
             enabled.into()
         ));
         Ok(())
     }
     pub fn control_read(
-        &mut self,
+        &self,
         request_type: u8,
         request: u8,
         value: u16,
@@ -45,7 +75,7 @@ impl DeviceHandle {
         }
         let res = unsafe {
             libusb1_sys::libusb_control_transfer(
-                self.0.as_ptr(),
+                self.handle.as_ptr(),
                 request_type,
                 request,
                 value,
@@ -68,7 +98,7 @@ impl DeviceHandle {
     }
 
     pub fn control_write(
-        &mut self,
+        &self,
         request_type: u8,
         request: u8,
         value: u16,
@@ -83,7 +113,7 @@ impl DeviceHandle {
         }
         let res = unsafe {
             libusb1_sys::libusb_control_transfer(
-                self.0.as_ptr(),
+                self.handle.as_ptr(),
                 request_type,
                 request,
                 value,
@@ -106,7 +136,7 @@ impl DeviceHandle {
     }
 
     pub fn bulk_write(
-        &mut self,
+        &self,
         endpoint: u8,
         data: &[u8],
         timeout: core::time::Duration,
@@ -119,7 +149,7 @@ impl DeviceHandle {
         let mut transferred = 0;
         unsafe {
             match libusb1_sys::libusb_bulk_transfer(
-                self.0.as_ptr(),
+                self.handle.as_ptr(),
                 endpoint,
                 data.as_ptr() as *mut u8,
                 data.len() as i32,
@@ -142,7 +172,7 @@ impl DeviceHandle {
     }
 
     pub fn bulk_read(
-        &mut self,
+        &self,
         endpoint: u8,
         data: &mut [u8],
         timeout: core::time::Duration,
@@ -155,7 +185,7 @@ impl DeviceHandle {
         let mut transferred = 0;
         unsafe {
             match libusb1_sys::libusb_bulk_transfer(
-                self.0.as_ptr(),
+                self.handle.as_ptr(),
                 endpoint,
                 data.as_mut_ptr(),
                 data.len() as i32,
@@ -190,7 +220,7 @@ impl DeviceHandle {
         let mut transferred = 0;
         unsafe {
             match libusb1_sys::libusb_interrupt_transfer(
-                self.0.as_ptr(),
+                self.handle.as_ptr(),
                 endpoint,
                 data.as_ptr() as *mut u8,
                 data.len() as i32,
@@ -223,7 +253,7 @@ impl DeviceHandle {
         let mut transferred = 0;
         unsafe {
             match libusb1_sys::libusb_interrupt_transfer(
-                self.0.as_ptr(),
+                self.handle.as_ptr(),
                 endpoint,
                 data.as_mut_ptr(),
                 data.len() as i32,
@@ -242,18 +272,26 @@ impl DeviceHandle {
             }
         }
     }
-    pub fn claim_interface(&self, interface: u8) -> Result<(), Error> {
+    pub fn claim_interface(&mut self, interface: u8) -> Result<(), Error> {
+        if self.interfaces.is_claimed(interface) {
+            return Ok(());
+        }
         try_unsafe!(libusb1_sys::libusb_claim_interface(
-            self.0.as_ptr(),
+            self.handle.as_ptr(),
             interface.into()
         ));
+        self.interfaces.claim(interface);
         Ok(())
     }
-    pub fn release_interface(&self, interface: u8) -> Result<(), Error> {
+    pub fn release_interface(&mut self, interface: u8) -> Result<(), Error> {
+        if !self.interfaces.is_claimed(interface) {
+            return Ok(());
+        }
         try_unsafe!(libusb1_sys::libusb_release_interface(
-            self.0.as_ptr(),
+            self.handle.as_ptr(),
             interface.into()
         ));
+        self.interfaces.release(interface);
         Ok(())
     }
     pub fn read_string_descriptor_ascii(&self, index: u8) -> Result<String, Error> {
@@ -263,7 +301,12 @@ impl DeviceHandle {
         let capacity = out.capacity() as i32;
 
         let res = unsafe {
-            libusb1_sys::libusb_get_string_descriptor_ascii(self.0.as_ptr(), index, ptr, capacity)
+            libusb1_sys::libusb_get_string_descriptor_ascii(
+                self.handle.as_ptr(),
+                index,
+                ptr,
+                capacity,
+            )
         };
 
         if res < 0 {
@@ -279,13 +322,16 @@ impl DeviceHandle {
     pub const unsafe fn from_libusb(
         ptr: core::ptr::NonNull<libusb1_sys::libusb_device_handle>,
     ) -> DeviceHandle {
-        DeviceHandle(ptr)
+        DeviceHandle {
+            handle: ptr,
+            interfaces: ClaimedInterfaces::DEFAULT,
+        }
     }
     pub fn close(self) {
         drop(self)
     }
     pub fn reset(&self) -> Result<(), Error> {
-        try_unsafe!(libusb1_sys::libusb_reset_device(self.0.as_ptr()));
+        try_unsafe!(libusb1_sys::libusb_reset_device(self.handle.as_ptr()));
         Ok(())
     }
 }

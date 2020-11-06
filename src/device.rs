@@ -10,6 +10,15 @@ pub struct DeviceIdentifier {
     pub vendor_id: VendorID,
     pub product_id: ProductID,
 }
+impl core::fmt::Display for DeviceIdentifier {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "vid: {:04X} pid: {:04X}",
+            self.vendor_id.0, self.product_id.0
+        )
+    }
+}
 pub struct StringIndices {
     pub manufacturer: Option<u8>,
     pub product: Option<u8>,

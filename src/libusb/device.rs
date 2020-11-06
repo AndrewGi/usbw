@@ -47,12 +47,6 @@ impl Device {
         self.0
     }
 }
-impl Clone for Device {
-    fn clone(&self) -> Self {
-        unsafe { libusb1_sys::libusb_ref_device(self.0.as_ptr()) };
-        Device(self.0)
-    }
-}
 impl Drop for Device {
     fn drop(&mut self) {
         unsafe { libusb1_sys::libusb_unref_device(self.0.as_ptr()) }
@@ -109,7 +103,7 @@ impl<'a> core::iter::Iterator for DeviceListIter<'a> {
         if self.pos >= self.list.len() {
             None
         } else {
-            let out = unsafe { self.list.get(self.pos)? };
+            let out = self.list.get(self.pos)?;
             self.pos += 1;
             Some(out)
         }
