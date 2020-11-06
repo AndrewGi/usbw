@@ -1,8 +1,10 @@
+use crate::libusb::device::Device;
 use crate::libusb::device_handle::DeviceHandle;
 use crate::libusb::error::Error;
-use crate::libusb::transfer::{ControlSetup, SafeTransfer, Transfer, TransferType};
+use crate::libusb::transfer::{ControlSetup, Transfer, TransferType, TransferWithBuf};
 use driver_async::asyncs::sync::oneshot;
 use std::convert::TryInto;
+
 /// The Synchronous libusb interface converted to rust async. Warning, each function will
 /// allocate a `Transfer` and a buffer for any data + `ControlSetup::SIZE`.
 pub struct AsyncDevice {
@@ -92,7 +94,7 @@ impl AsyncDevice {
         transfer.set_timeout(timeout);
         transfer.set_callback(Self::system_callback);
         transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        let mut transfer = SafeTransfer::new(transfer, buf.as_mut());
+        let mut transfer = TransferWithBuf::new(transfer, buf.as_mut());
         transfer.set_control_setup(
             &self.handle,
             ControlSetup {
@@ -140,7 +142,7 @@ impl AsyncDevice {
         transfer.set_timeout(timeout);
         transfer.set_callback(Self::system_callback);
         transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        let mut transfer = SafeTransfer::new(transfer, buf.as_mut());
+        let mut transfer = TransferWithBuf::new(transfer, buf.as_mut());
 
         // Fill with write data
         transfer.control_data_mut().copy_from_slice(data);
@@ -228,12 +230,10 @@ impl AsyncDevice {
         transfer.set_callback(Self::system_callback);
         transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
         // Set buffer
-        let transfer = SafeTransfer::new(transfer, data);
-        // Fill transfer with control parameters
-        println!("submiting");
+        let transfer = TransferWithBuf::new(transfer, data);
+
         // Send the transfer off
         unsafe { transfer.transfer_ref().submit() }?;
-        println!("submitted");
         // TODO: Check if sender is dropped
         completed_wait
             .await
@@ -276,5 +276,8 @@ impl AsyncDevice {
     ) -> Result<usize, Error> {
         self.bulk_type_read(BulkType::Interrupt, endpoint, data, timeout)
             .await
+    }
+    pub fn device(&self) -> Device {
+        self.handle.device()
     }
 }

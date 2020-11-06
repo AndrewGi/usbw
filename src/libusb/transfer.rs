@@ -285,11 +285,11 @@ impl Drop for Transfer {
     }
 }
 
-pub struct SafeTransfer<'a> {
+pub struct TransferWithBuf<'a> {
     transfer_buf: &'a mut [u8],
     transfer: Transfer,
 }
-impl<'a> SafeTransfer<'a> {
+impl<'a> TransferWithBuf<'a> {
     /// WARNING! The `transfer_buf` holds more than just the data to be read/sent
     pub fn new(mut transfer: Transfer, transfer_buf: &'a mut [u8]) -> Self {
         transfer.set_buffer(transfer_buf.as_mut_ptr(), transfer_buf.len());
