@@ -15,7 +15,7 @@ impl Drop for DeviceHandle {
     fn drop(&mut self) {
         unsafe {
             while let Some(i) = self.interfaces.next() {
-                unsafe { libusb1_sys::libusb_release_interface(self.handle.as_ptr(), i.into()) };
+                libusb1_sys::libusb_release_interface(self.handle.as_ptr(), i.into());
             }
             libusb1_sys::libusb_close(self.handle.as_ptr())
         }

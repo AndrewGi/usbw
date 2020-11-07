@@ -1,4 +1,3 @@
-use futures_util::StreamExt;
 use usbw::libusb::device::Device;
 use usbw::libusb::error::Error;
 
@@ -35,7 +34,7 @@ pub fn bluetooth_adapters<'a>(
 }
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut runtime = tokio::runtime::Builder::new_current_thread()
+    let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("can't make async runtime");
@@ -76,7 +75,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     println!("claim");
     adapter.handle_mut().claim_interface(0)?;
     println!("write!");
-    let n = adapter
+    let _n = adapter
         .control_write(
             0x20,
             0,

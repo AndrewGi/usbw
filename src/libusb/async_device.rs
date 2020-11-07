@@ -85,7 +85,7 @@ impl AsyncDevice {
         // Allocate Transfer
         let mut transfer = Transfer::new(0);
         // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
-        let mut buf = vec![0; (data.len() + ControlSetup::SIZE)].into_boxed_slice();
+        let mut buf = vec![0; data.len() + ControlSetup::SIZE].into_boxed_slice();
         // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
@@ -133,7 +133,7 @@ impl AsyncDevice {
         // Allocate Transfer
         let mut transfer = Transfer::new(0);
         // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
-        let mut buf = vec![0; (data.len() + ControlSetup::SIZE)].into_boxed_slice();
+        let mut buf = vec![0; data.len() + ControlSetup::SIZE].into_boxed_slice();
         // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));

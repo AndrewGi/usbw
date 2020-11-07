@@ -20,7 +20,9 @@ impl AsyncContext {
         let running_atomic = is_running.clone();
         let job = move || {
             while is_running.load(Ordering::Relaxed) {
-                job_context.handle_events();
+                job_context
+                    .handle_events()
+                    .expect("libusb handle events error");
             }
         };
         let handle = std::thread::spawn(job);

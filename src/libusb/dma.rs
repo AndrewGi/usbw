@@ -1,4 +1,4 @@
-#![allow(unused_variables)]
+#![allow(unused_variables, dead_code)]
 use crate::libusb::device_handle::DeviceHandle;
 
 pub struct DevMem {

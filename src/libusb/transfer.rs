@@ -1,3 +1,4 @@
+#![allow(unused_unsafe)]
 use crate::libusb::device_handle::DeviceHandle;
 use crate::libusb::error::Error;
 use core::convert::TryInto;
@@ -129,7 +130,7 @@ pub struct ControlSetup {
 impl ControlSetup {
     pub const SIZE: usize = core::mem::size_of::<Self>();
     /// Taste Host-Endian `ControlSetup` and serializes it in Little-Endian
-    pub fn serialize(mut self, buf: &mut [u8]) {
+    pub fn serialize(self, buf: &mut [u8]) {
         assert!(buf.len() >= Self::SIZE, "ControlSetup buf too small");
         let le = ControlSetup {
             request_type: self.request_type,
