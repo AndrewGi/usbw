@@ -2,6 +2,9 @@ use crate::libusb::interface_descriptor::Interfaces;
 
 pub struct ConfigDescriptor(core::ptr::NonNull<libusb1_sys::libusb_config_descriptor>);
 impl ConfigDescriptor {
+    /// # Safety
+    /// Assumes the pointer is a valid pointer to a `libusb_config_descriptor` allocated by
+    /// `libusb`.
     pub unsafe fn from_libusb(
         ptr: core::ptr::NonNull<libusb1_sys::libusb_config_descriptor>,
     ) -> ConfigDescriptor {

@@ -319,6 +319,8 @@ impl DeviceHandle {
 
         String::from_utf8(out).map_err(|_| Error::Other)
     }
+    /// # Safety
+    /// Assumes the handle is valid.
     pub const unsafe fn from_libusb(
         ptr: core::ptr::NonNull<libusb1_sys::libusb_device_handle>,
     ) -> DeviceHandle {

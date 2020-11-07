@@ -42,7 +42,8 @@ impl Drop for CallbackData {
     }
 }
 impl AsyncDevice {
-    /// SAFETY: Will block if a `AsyncContext` is running with the device's context
+    /// # Safety
+    /// Will block if a `AsyncContext` is running with the device's context
     pub unsafe fn from_device(handle: DeviceHandle) -> AsyncDevice {
         AsyncDevice { handle }
     }

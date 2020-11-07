@@ -15,6 +15,9 @@ pub enum LogLevel {
     Debug = 4,
 }
 static DEFAULT_CONTEXT_COUNT: AtomicUsize = AtomicUsize::new(0);
+/// Handle the default context reference counter
+/// # Safety
+/// Modication of the atomic could cause the default context to be prematurely or never freed.
 pub unsafe fn default_context_reference_counter() -> &'static AtomicUsize {
     &DEFAULT_CONTEXT_COUNT
 }

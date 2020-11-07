@@ -6,6 +6,8 @@ use crate::libusb::error::Error;
 #[derive(Debug)]
 pub struct Device(core::ptr::NonNull<libusb1_sys::libusb_device>);
 impl Device {
+    /// # Safety
+    /// Assumes the pointer is valid and pointers to a `libusb_device`
     pub const unsafe fn from_libusb(ptr: core::ptr::NonNull<libusb1_sys::libusb_device>) -> Device {
         Device(ptr)
     }
@@ -59,6 +61,8 @@ pub struct DeviceList {
     len: usize,
 }
 impl DeviceList {
+    /// # Safety
+    /// Assumes the pointer is valid and pointers to a list of devices
     pub const unsafe fn from_libusb(
         ptr: core::ptr::NonNull<*mut libusb1_sys::libusb_device>,
         len: usize,

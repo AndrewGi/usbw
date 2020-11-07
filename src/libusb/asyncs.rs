@@ -48,8 +48,8 @@ impl AsyncContext {
 impl Drop for AsyncContext {
     fn drop(&mut self) {
         self.running_atomic.store(false, Ordering::SeqCst);
-        self.thread
-            .take()
-            .map(|h| h.join().expect("async context paniced"));
+        if let Some(handle) = self.thread.take() {
+            handle.join().expect("async context panicked")
+        }
     }
 }

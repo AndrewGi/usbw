@@ -241,10 +241,16 @@ impl Transfer {
         self.libusb_mut().buffer = buffer;
         self.libusb_mut().length = len as i32;
     }
+    /// # Safety
+    /// The transfer status and pointers could cause memory to be read and write. Memory Safety
+    /// isn't guaranteed for this struct
     pub unsafe fn submit(&self) -> Result<(), Error> {
         try_unsafe!(libusb1_sys::libusb_submit_transfer(self.0.as_ptr()));
         Ok(())
     }
+    /// # Safety
+    /// The transfer status and pointers could cause memory to be read and write. Memory Safety
+    /// isn't guaranteed for this struct
     pub unsafe fn cancel(&self) -> Result<(), Error> {
         try_unsafe!(libusb1_sys::libusb_cancel_transfer(self.0.as_ptr()));
         Ok(())
@@ -261,6 +267,8 @@ impl Transfer {
     pub fn get_stream_id(&self) -> u32 {
         unsafe { libusb1_sys::libusb_transfer_get_stream_id(self.0.as_ptr()) }
     }
+    /// # Safety
+    /// Treats the pointer as a reference and it could dereference dangling memory
     pub unsafe fn from_libusb(ptr: core::ptr::NonNull<libusb1_sys::libusb_transfer>) -> Transfer {
         Transfer(ptr)
     }
@@ -273,9 +281,13 @@ impl Transfer {
     pub fn set_user_data<T>(&mut self, user_data: *mut T) {
         self.libusb_mut().user_data = user_data as *mut _
     }
+    /// # Safety
+    /// Casting a void pointer to any type
     pub unsafe fn cast_userdata_ref<T>(&self) -> &T {
         unsafe { &*(self.libusb_ref().user_data as *const T) }
     }
+    /// # Safety
+    /// Casting a void pointer to any type
     pub unsafe fn cast_userdata_mut<T>(&mut self) -> &mut T {
         unsafe { &mut *(self.libusb_ref().user_data as *mut T) }
     }

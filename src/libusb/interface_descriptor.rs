@@ -6,6 +6,8 @@ impl<'a> Interfaces<'a> {
     pub fn from_slice(slice: &'a [libusb1_sys::libusb_interface]) -> Interfaces<'a> {
         Interfaces(slice)
     }
+    /// # Safety
+    /// Assumes the pointer is valid and pointers to a list of interfaces
     pub unsafe fn from_ptr(ptr: *mut libusb1_sys::libusb_interface, len: usize) -> Interfaces<'a> {
         Interfaces(core::slice::from_raw_parts(ptr, len))
     }

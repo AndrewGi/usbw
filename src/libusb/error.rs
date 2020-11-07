@@ -101,7 +101,8 @@ pub fn from_libusb(err: i32) -> Error {
         libusb1_sys::constants::LIBUSB_ERROR_INTERRUPTED => Error::Interrupted,
         libusb1_sys::constants::LIBUSB_ERROR_NO_MEM => Error::NoMem,
         libusb1_sys::constants::LIBUSB_ERROR_NOT_SUPPORTED => Error::NotSupported,
-        libusb1_sys::constants::LIBUSB_ERROR_OTHER | _ => Error::Other,
+        libusb1_sys::constants::LIBUSB_ERROR_OTHER => Error::Other,
+        _ => Error::Other,
     }
 }
 macro_rules! try_unsafe {
