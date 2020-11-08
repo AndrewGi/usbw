@@ -78,24 +78,46 @@ impl AsyncDevice {
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        if request_type & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
-            != libusb1_sys::constants::LIBUSB_ENDPOINT_IN
-        {
-            return Err(Error::InvalidParam);
-        }
         // Allocate Transfer
         let mut transfer = Transfer::new(0);
         // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
         let mut buf = vec![0; data.len() + ControlSetup::SIZE].into_boxed_slice();
-        // Allocate CallbackData that enables Async
+        let transfer_buf = buf.as_mut();
+        self.control_read_transfer(
+            TransferWithBuf::new(&mut transfer, transfer_buf),
+            request_type,
+            request,
+            value,
+            index,
+            data,
+            timeout,
+        )
+        .await
+    }
+    pub async fn control_read_transfer(
+        &self,
+        mut transfer: TransferWithBuf<'_, '_>,
+        request_type: u8,
+        request: u8,
+        value: u16,
+        index: u16,
+        data: &mut [u8],
+        timeout: core::time::Duration,
+    ) -> Result<usize, Error> {
+        if request_type & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
+            != libusb1_sys::constants::LIBUSB_ENDPOINT_IN
+        {
+            return Err(Error::InvalidParam);
+        } // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
         // Fill transfer with control parameters
-        transfer.clear_flags();
-        transfer.set_timeout(timeout);
-        transfer.set_callback(Self::system_callback);
-        transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        let mut transfer = TransferWithBuf::new(transfer, buf.as_mut());
+        transfer.transfer_mut().clear_flags();
+        transfer.transfer_mut().set_timeout(timeout);
+        transfer.transfer_mut().set_callback(Self::system_callback);
+        transfer
+            .transfer_mut()
+            .set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
         transfer.set_control_setup(
             &self.handle,
             ControlSetup {
@@ -116,9 +138,33 @@ impl AsyncDevice {
         data[..len].copy_from_slice(&transfer.control_data_ref()[..len]);
         Ok(len)
     }
-
     pub async fn control_write(
         &self,
+        request_type: u8,
+        request: u8,
+        value: u16,
+        index: u16,
+        data: &[u8],
+        timeout: core::time::Duration,
+    ) -> Result<usize, Error> {
+        // Allocate Transfer
+        let mut transfer = Transfer::new(0);
+        // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
+        let mut buf = vec![0; data.len() + ControlSetup::SIZE].into_boxed_slice();
+        self.control_write_transfer(
+            TransferWithBuf::new(&mut transfer, buf.as_mut()),
+            request_type,
+            request,
+            value,
+            index,
+            data,
+            timeout,
+        )
+        .await
+    }
+    pub async fn control_write_transfer(
+        &self,
+        mut transfer: TransferWithBuf<'_, '_>,
         request_type: u8,
         request: u8,
         value: u16,
@@ -130,20 +176,16 @@ impl AsyncDevice {
             != libusb1_sys::constants::LIBUSB_ENDPOINT_OUT
         {
             return Err(Error::InvalidParam);
-        }
-        // Allocate Transfer
-        let mut transfer = Transfer::new(0);
-        // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
-        let mut buf = vec![0; data.len() + ControlSetup::SIZE].into_boxed_slice();
-        // Allocate CallbackData that enables Async
+        } // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
         // Set transfer parameters
-        transfer.clear_flags();
-        transfer.set_timeout(timeout);
-        transfer.set_callback(Self::system_callback);
-        transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        let mut transfer = TransferWithBuf::new(transfer, buf.as_mut());
+        transfer.transfer_mut().clear_flags();
+        transfer.transfer_mut().set_timeout(timeout);
+        transfer.transfer_mut().set_callback(Self::system_callback);
+        transfer
+            .transfer_mut()
+            .set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
 
         // Fill with write data
         transfer.control_data_mut().copy_from_slice(data);
@@ -167,8 +209,9 @@ impl AsyncDevice {
         let len = transfer.transfer_ref().try_actual_length()? as usize;
         Ok(len)
     }
-    pub async fn bulk_type_write(
+    pub async fn bulk_type_write_transfer(
         &self,
+        transfer: &mut Transfer,
         bulk_type: BulkType,
         endpoint: u8,
         data: &[u8],
@@ -179,8 +222,6 @@ impl AsyncDevice {
         {
             return Err(Error::InvalidParam);
         }
-        // Allocate Transfer
-        let mut transfer = Transfer::new(0);
         // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
@@ -205,8 +246,9 @@ impl AsyncDevice {
         Ok(len)
     }
 
-    pub async fn bulk_type_read(
+    pub async fn bulk_type_read_transfer(
         &self,
+        transfer: &mut Transfer,
         bulk_type: BulkType,
         endpoint: u8,
         data: &mut [u8],
@@ -217,8 +259,6 @@ impl AsyncDevice {
         {
             return Err(Error::InvalidParam);
         }
-        // Allocate Transfer
-        let mut transfer = Transfer::new(0);
         // Allocate CallbackData that enables Async
         let (tx, completed_wait) = oneshot::channel();
         let mut callback = Box::new(CallbackData::new(tx));
@@ -248,7 +288,8 @@ impl AsyncDevice {
         data: &[u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        self.bulk_type_write(BulkType::Bulk, endpoint, data, timeout)
+        let mut transfer = Transfer::new(0);
+        self.bulk_type_write_transfer(&mut transfer, BulkType::Bulk, endpoint, data, timeout)
             .await
     }
     pub async fn interrupt_write(
@@ -257,7 +298,8 @@ impl AsyncDevice {
         data: &[u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        self.bulk_type_write(BulkType::Interrupt, endpoint, data, timeout)
+        let mut transfer = Transfer::new(0);
+        self.bulk_type_write_transfer(&mut transfer, BulkType::Interrupt, endpoint, data, timeout)
             .await
     }
     pub async fn bulk_read(
@@ -266,7 +308,8 @@ impl AsyncDevice {
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        self.bulk_type_read(BulkType::Bulk, endpoint, data, timeout)
+        let mut transfer = Transfer::new(0);
+        self.bulk_type_read_transfer(&mut transfer, BulkType::Bulk, endpoint, data, timeout)
             .await
     }
     pub async fn interrupt_read(
@@ -275,7 +318,8 @@ impl AsyncDevice {
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        self.bulk_type_read(BulkType::Interrupt, endpoint, data, timeout)
+        let mut transfer = Transfer::new(0);
+        self.bulk_type_read_transfer(&mut transfer, BulkType::Interrupt, endpoint, data, timeout)
             .await
     }
     pub fn device(&self) -> Device {

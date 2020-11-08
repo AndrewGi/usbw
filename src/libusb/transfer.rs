@@ -298,13 +298,13 @@ impl Drop for Transfer {
     }
 }
 
-pub struct TransferWithBuf<'a> {
-    transfer_buf: &'a mut [u8],
-    transfer: Transfer,
+pub struct TransferWithBuf<'transfer, 'buf> {
+    transfer_buf: &'buf mut [u8],
+    transfer: &'transfer mut Transfer,
 }
-impl<'a> TransferWithBuf<'a> {
+impl<'t, 'b> TransferWithBuf<'t, 'b> {
     /// WARNING! The `transfer_buf` holds more than just the data to be read/sent
-    pub fn new(mut transfer: Transfer, transfer_buf: &'a mut [u8]) -> Self {
+    pub fn new(transfer: &'t mut Transfer, transfer_buf: &'b mut [u8]) -> Self {
         transfer.set_buffer(transfer_buf.as_mut_ptr(), transfer_buf.len());
         Self {
             transfer_buf,
@@ -312,7 +312,7 @@ impl<'a> TransferWithBuf<'a> {
         }
     }
     /// Returns the old `transfer_buf`
-    pub fn set_buf(&mut self, new_buf: &'a mut [u8]) -> &'a mut [u8] {
+    pub fn set_buf(&mut self, new_buf: &'b mut [u8]) -> &'b mut [u8] {
         self.transfer
             .set_buffer(new_buf.as_mut_ptr(), new_buf.len());
         core::mem::replace(&mut self.transfer_buf, new_buf)
