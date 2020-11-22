@@ -1,7 +1,9 @@
 use crate::libusb::device::Device;
 use crate::libusb::device_handle::DeviceHandle;
 use crate::libusb::error::Error;
-use crate::libusb::transfer::{ControlSetup, Transfer, TransferType, TransferWithBuf};
+use crate::libusb::transfer::{
+    ControlSetup, SafeTransfer, Transfer, TransferType, TransferWithBuf,
+};
 use driver_async::asyncs::sync::oneshot;
 use std::convert::TryInto;
 
@@ -48,6 +50,7 @@ impl AsyncDevice {
         AsyncDevice { handle }
     }
     extern "system" fn system_callback(transfer: *mut libusb1_sys::libusb_transfer) {
+        println!("callback");
         let mut transfer = unsafe {
             Transfer::from_libusb(
                 core::ptr::NonNull::new(transfer).expect("null transfer ptr in callback"),
@@ -62,6 +65,7 @@ impl AsyncDevice {
         }
         let callback_data = unsafe { transfer.cast_userdata_mut::<CallbackData>() };
         callback_data.send_completed();
+        transfer.libusb_mut().user_data = core::ptr::null_mut();
     }
     pub fn handle_ref(&self) -> &DeviceHandle {
         &self.handle
@@ -69,6 +73,7 @@ impl AsyncDevice {
     pub fn handle_mut(&mut self) -> &mut DeviceHandle {
         &mut self.handle
     }
+
     pub async fn control_read(
         &self,
         request_type: u8,
@@ -78,63 +83,17 @@ impl AsyncDevice {
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        // Allocate Transfer
-        let mut transfer = Transfer::new(0);
-        // Allocate buffer for data (have to allocate data.len() + ControlSetup::SIZE sadly)
-        let mut buf = vec![0; data.len() + ControlSetup::SIZE].into_boxed_slice();
-        let transfer_buf = buf.as_mut();
-        self.control_read_transfer(
-            TransferWithBuf::new(&mut transfer, transfer_buf),
+        let mut transfer = SafeTransfer::from_buf(vec![0_u8; data.len() + ControlSetup::SIZE]);
+        transfer.set_timeout(timeout);
+        // Fill transfer with control parameters
+        transfer.set_control_setup(ControlSetup {
             request_type,
             request,
             value,
             index,
-            data,
-            timeout,
-        )
-        .await
-    }
-    pub async fn control_read_transfer(
-        &self,
-        mut transfer: TransferWithBuf<'_, '_>,
-        request_type: u8,
-        request: u8,
-        value: u16,
-        index: u16,
-        data: &mut [u8],
-        timeout: core::time::Duration,
-    ) -> Result<usize, Error> {
-        if request_type & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
-            != libusb1_sys::constants::LIBUSB_ENDPOINT_IN
-        {
-            return Err(Error::InvalidParam);
-        } // Allocate CallbackData that enables Async
-        let (tx, completed_wait) = oneshot::channel();
-        let mut callback = Box::new(CallbackData::new(tx));
-        // Fill transfer with control parameters
-        transfer.transfer_mut().clear_flags();
-        transfer.transfer_mut().set_timeout(timeout);
-        transfer.transfer_mut().set_callback(Self::system_callback);
-        transfer
-            .transfer_mut()
-            .set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        transfer.set_control_setup(
-            &self.handle,
-            ControlSetup {
-                request_type,
-                request,
-                value,
-                index,
-                len: data.len().try_into().expect("too much data"),
-            },
-        );
-        // Send the transfer off
-        unsafe { transfer.transfer_mut().submit() }?;
-        // TODO: Check if sender is dropped
-        completed_wait
-            .await
-            .expect("sender was dropped, Andrew need to fix this");
-        let len = transfer.transfer_ref().try_actual_length()? as usize;
+            len: data.len().try_into().expect("too much data"),
+        });
+        let len = transfer.submit_write(self).await?;
         data[..len].copy_from_slice(&transfer.control_data_ref()[..len]);
         Ok(len)
     }
@@ -162,144 +121,49 @@ impl AsyncDevice {
         )
         .await
     }
-    pub async fn control_write_transfer(
+    pub async fn bulk_type_write(
         &self,
-        mut transfer: TransferWithBuf<'_, '_>,
-        request_type: u8,
-        request: u8,
-        value: u16,
-        index: u16,
-        data: &[u8],
-        timeout: core::time::Duration,
-    ) -> Result<usize, Error> {
-        if request_type & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
-            != libusb1_sys::constants::LIBUSB_ENDPOINT_OUT
-        {
-            return Err(Error::InvalidParam);
-        } // Allocate CallbackData that enables Async
-        let (tx, completed_wait) = oneshot::channel();
-        let mut callback = Box::new(CallbackData::new(tx));
-        // Set transfer parameters
-        transfer.transfer_mut().clear_flags();
-        transfer.transfer_mut().set_timeout(timeout);
-        transfer.transfer_mut().set_callback(Self::system_callback);
-        transfer
-            .transfer_mut()
-            .set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-
-        // Fill with write data
-        transfer.control_data_mut().copy_from_slice(data);
-        // Fill transfer with control parameters
-        transfer.set_control_setup(
-            &self.handle,
-            ControlSetup {
-                request_type,
-                request,
-                value,
-                index,
-                len: data.len().try_into().expect("too much data"),
-            },
-        );
-        // Send the transfer off
-        unsafe { transfer.transfer_mut().submit() }?;
-        // TODO: Check if sender is dropped
-        completed_wait
-            .await
-            .expect("sender was dropped, Andrew need to fix this");
-        let len = transfer.transfer_ref().try_actual_length()? as usize;
-        Ok(len)
-    }
-    pub async fn bulk_type_write_transfer(
-        &self,
-        transfer: &mut Transfer,
         bulk_type: BulkType,
         endpoint: u8,
         data: &[u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        if endpoint & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
-            != libusb1_sys::constants::LIBUSB_ENDPOINT_OUT
-        {
-            return Err(Error::InvalidParam);
-        }
-        // Allocate CallbackData that enables Async
-        let (tx, completed_wait) = oneshot::channel();
-        let mut callback = Box::new(CallbackData::new(tx));
-        // Set transfer parameters
-        transfer.clear_flags();
-        transfer.set_timeout(timeout);
-        transfer.set_type(bulk_type.transfer_type());
+        let mut transfer = SafeTransfer::from_buf(data);
+        transfer.set_type(bulk_type.into());
         transfer.set_endpoint(endpoint);
-        transfer.set_device(&self.handle);
-        transfer.set_callback(Self::system_callback);
-        transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        // Set buffer
-        transfer.set_buffer(data.as_ptr() as *mut _, data.len());
-
-        // Send the transfer off
-        unsafe { transfer.submit() }?;
-        // TODO: Check if sender is dropped
-        completed_wait
-            .await
-            .expect("sender was dropped, Andrew need to fix this");
-        let len = transfer.try_actual_length()? as usize;
-        Ok(len)
+        transfer.set_timeout(timeout);
+        transfer.submit_write(self).await
     }
 
-    pub async fn bulk_type_read_transfer(
+    pub async fn bulk_type_read(
         &self,
-        transfer: &mut Transfer,
         bulk_type: BulkType,
         endpoint: u8,
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        if endpoint & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
-            != libusb1_sys::constants::LIBUSB_ENDPOINT_IN
-        {
-            return Err(Error::InvalidParam);
-        }
-        // Allocate CallbackData that enables Async
-        let (tx, completed_wait) = oneshot::channel();
-        let mut callback = Box::new(CallbackData::new(tx));
-        // Set transfer parameters
-        transfer.clear_flags();
-        transfer.set_timeout(timeout);
-        transfer.set_type(bulk_type.transfer_type());
+        let mut transfer = SafeTransfer::from_buf(data);
+        transfer.set_type(bulk_type.into());
         transfer.set_endpoint(endpoint);
-        transfer.set_device(&self.handle);
-        transfer.set_callback(Self::system_callback);
-        transfer.set_user_data(&mut callback as &mut CallbackData as *mut CallbackData);
-        // Set buffer
-        let transfer = TransferWithBuf::new(transfer, data);
-
-        // Send the transfer off
-        unsafe { transfer.transfer_ref().submit() }?;
-        // TODO: Check if sender is dropped
-        completed_wait
-            .await
-            .expect("sender was dropped, Andrew need to fix this");
-        let len = transfer.transfer_ref().try_actual_length()? as usize;
-        Ok(len)
+        transfer.set_timeout(timeout);
+        transfer.submit_read(self).await
     }
     pub async fn bulk_write(
-        &mut self,
+        &self,
         endpoint: u8,
         data: &[u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        let mut transfer = Transfer::new(0);
-        self.bulk_type_write_transfer(&mut transfer, BulkType::Bulk, endpoint, data, timeout)
+        self.bulk_type_write(BulkType::Bulk, endpoint, data, timeout)
             .await
     }
     pub async fn interrupt_write(
-        &mut self,
+        &self,
         endpoint: u8,
         data: &[u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        let mut transfer = Transfer::new(0);
-        self.bulk_type_write_transfer(&mut transfer, BulkType::Interrupt, endpoint, data, timeout)
+        self.bulk_type_write(BulkType::Interrupt, endpoint, data, timeout)
             .await
     }
     pub async fn bulk_read(
@@ -308,18 +172,16 @@ impl AsyncDevice {
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        let mut transfer = Transfer::new(0);
-        self.bulk_type_read_transfer(&mut transfer, BulkType::Bulk, endpoint, data, timeout)
+        self.bulk_type_read(BulkType::Bulk, endpoint, data, timeout)
             .await
     }
     pub async fn interrupt_read(
-        &mut self,
+        &self,
         endpoint: u8,
         data: &mut [u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
-        let mut transfer = Transfer::new(0);
-        self.bulk_type_read_transfer(&mut transfer, BulkType::Interrupt, endpoint, data, timeout)
+        self.bulk_type_read(BulkType::Interrupt, endpoint, data, timeout)
             .await
     }
     pub fn device(&self) -> Device {

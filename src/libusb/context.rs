@@ -37,6 +37,9 @@ impl Context {
     pub fn leak(self) {
         core::mem::forget(self)
     }
+    pub fn set_debug_level(&self, new_level: LogLevel) {
+        unsafe { libusb1_sys::libusb_set_debug(self.0, new_level as i32) }
+    }
     pub fn default() -> Result<Context, Error> {
         // NOOP if default Context already exists
         try_unsafe!(libusb1_sys::libusb_init(core::ptr::null_mut()));
@@ -45,9 +48,6 @@ impl Context {
     }
     pub fn is_default(&self) -> bool {
         self.0.is_null()
-    }
-    pub fn set_debug(&self, level: LogLevel) {
-        unsafe { libusb1_sys::libusb_set_debug(self.0, level as i32) }
     }
     pub fn device_list(&self) -> DeviceList {
         let mut out = core::ptr::null();
