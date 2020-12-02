@@ -13,6 +13,7 @@ pub mod endpoint_descriptor;
 pub mod hotplug;
 pub mod interface_descriptor;
 pub mod interfaces;
+pub mod safe_transfer;
 pub mod speed;
 pub mod transfer;
 pub mod version;
