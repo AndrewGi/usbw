@@ -3,6 +3,7 @@ use crate::libusb::device_handle::DeviceHandle;
 use crate::libusb::error::Error;
 use crate::libusb::safe_transfer::{SafeTransfer, SafeTransferAsyncLink};
 use crate::libusb::transfer::{ControlSetup, Transfer, TransferType};
+use libusb1_sys::constants::{LIBUSB_DT_STRING, LIBUSB_ENDPOINT_IN, LIBUSB_REQUEST_GET_DESCRIPTOR};
 use std::convert::TryInto;
 
 /// The Synchronous libusb interface converted to rust async. Warning, each function will
@@ -153,6 +154,50 @@ impl AsyncDevice {
     pub fn device(&self) -> Device {
         self.handle.device()
     }
+
+    pub async fn get_string_descriptor_bytes(
+        &self,
+        desc_index: u8,
+        langid: u16,
+        data: &mut [u8],
+    ) -> Result<usize, Error> {
+        if desc_index == 0 {
+            return Err(Error::InvalidParam);
+        }
+        self.control_read(
+            LIBUSB_ENDPOINT_IN,
+            LIBUSB_REQUEST_GET_DESCRIPTOR,
+            u16::from(LIBUSB_DT_STRING) << 8 | u16::from(desc_index),
+            langid,
+            data,
+            core::time::Duration::from_millis(1000),
+        )
+        .await
+    }
+    pub async fn get_string_descriptor(
+        &self,
+        desc_index: u8,
+        langid: u16,
+    ) -> Result<String, Error> {
+        let mut buf = vec![0_u8; 255];
+        let len = self
+            .get_string_descriptor_bytes(desc_index, langid, buf.as_mut_slice())
+            .await?;
+        buf.resize(len, 0_u8);
+        String::from_utf8(buf).map_err(|_| Error::Other)
+    }
+    pub async fn get_string_descriptor_ascii(&self, desc_index: u8) -> Result<String, Error> {
+        let mut langid_bytes = [0_u8; 2];
+        if self
+            .get_string_descriptor_bytes(0, 0, &mut langid_bytes[..])
+            .await?
+            != 2
+        {
+            return Err(Error::BadDescriptor);
+        }
+        let langid = u16::from_le_bytes(langid_bytes);
+        self.get_string_descriptor(desc_index, langid).await
+    }
 }
 
 struct InactiveTransfer {
@@ -161,6 +206,13 @@ struct InactiveTransfer {
     link: SafeTransferAsyncLink,
 }
 impl InactiveTransfer {
+    pub fn new() -> InactiveTransfer {
+        InactiveTransfer {
+            buf: vec![],
+            transfer: Transfer::new(0),
+            link: SafeTransferAsyncLink::new(),
+        }
+    }
     fn safe_transfer<TempBuf>(
         &mut self,
         buf: TempBuf,
@@ -187,20 +239,32 @@ pub struct SingleTransferDevice {
     transfer: InactiveTransfer,
 }
 impl SingleTransferDevice {
+    pub fn into_device(self) -> AsyncDevice {
+        self.device
+    }
     pub const fn from_parts(
         device: AsyncDevice,
         transfer: Transfer,
         buf: Vec<u8>,
         link: SafeTransferAsyncLink,
     ) -> Self {
-        Self {
+        Self::from_inactive_transfer(
             device,
-            transfer: InactiveTransfer {
+            InactiveTransfer {
                 buf,
                 transfer,
                 link,
             },
-        }
+        )
+    }
+    const fn from_inactive_transfer(device: AsyncDevice, transfer: InactiveTransfer) -> Self {
+        Self { device, transfer }
+    }
+    pub fn new(device: AsyncDevice) -> Self {
+        Self::from_inactive_transfer(device, InactiveTransfer::new())
+    }
+    pub fn device(&self) -> &AsyncDevice {
+        &self.device
     }
     pub fn buf_clear(&mut self) {
         self.transfer.buf.clear();
@@ -210,21 +274,6 @@ impl SingleTransferDevice {
     }
     pub fn buf_reserve(&mut self, length_to_reserve: usize) {
         self.transfer.buf.reserve(length_to_reserve)
-    }
-    fn check_if_control_data_fits(&self, data_len: usize) -> Result<(), Error> {
-        if self.buf_len() < ControlSetup::SIZE + data_len {
-            Err(Error::Overflow)
-        } else {
-            Ok(())
-        }
-    }
-    pub fn new(device: AsyncDevice) -> Self {
-        Self::from_parts(
-            device,
-            Transfer::new(0),
-            Vec::new(),
-            SafeTransferAsyncLink::new(),
-        )
     }
     pub async fn control_read(
         &mut self,
@@ -335,5 +384,10 @@ impl SingleTransferDevice {
     ) -> Result<usize, Error> {
         self.bulk_type_read(BulkType::Interrupt, endpoint, data, timeout)
             .await
+    }
+}
+impl From<AsyncDevice> for SingleTransferDevice {
+    fn from(device: AsyncDevice) -> Self {
+        SingleTransferDevice::new(device)
     }
 }
