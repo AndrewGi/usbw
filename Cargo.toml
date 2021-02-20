@@ -21,7 +21,7 @@ libusb1-sys = {version = "0.4.2", default_features = false, optional = true}
 futures-util = {version = "0.3.8", default_features = false}
 
 # Planning on removing depenences from driver_async
-driver_async = {version="0.0.3", path="../BluetoothMeshRust/async_driver"}
+driver_async = {version="0.0.3", path="../async_driver"}
 # Used for the async libusb transfer Drop.
 blocking = "1.0"
 [dev-dependencies]
