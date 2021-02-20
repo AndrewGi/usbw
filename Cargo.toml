@@ -17,7 +17,7 @@ winusb = ["winapi/winusb", "std"]
 
 winapi = {version = "0.3.8", default_features = false, optional = true}
 libc = {version = "0.2", default_features = false, optional = true}
-libusb1-sys = {version = "0.4.2", default_features = false, optional = true}
+libusb1-sys = {version = "0.5", default_features = false, optional = true}
 futures-util = {version = "0.3.8", default_features = false}
 
 # Planning on removing depenences from driver_async
