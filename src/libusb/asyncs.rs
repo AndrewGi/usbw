@@ -21,7 +21,7 @@ impl AsyncContext {
         let job = move || {
             while is_running.load(Ordering::Relaxed) {
                 job_context
-                    .handle_events()
+                    .handle_events_timeout(std::time::Duration::from_secs(1))
                     .expect("libusb handle events error");
             }
         };
