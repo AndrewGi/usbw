@@ -65,8 +65,8 @@ impl Context {
     }
     pub fn handle_events_timeout(&self, timeout: core::time::Duration) -> Result<(), Error> {
         let time = libc::timeval {
-            tv_sec: timeout.as_secs() as i32,
-            tv_usec: timeout.subsec_micros() as i32,
+            tv_sec: timeout.as_secs() as _,
+            tv_usec: timeout.subsec_micros() as _,
         };
         try_unsafe!(libusb1_sys::libusb_handle_events_timeout(self.0, &time));
         Ok(())
