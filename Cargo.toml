@@ -5,6 +5,7 @@ authors = ["AndrewGi <andrew@gilbrough.com>"]
 edition = "2018"
 license = "GPL-3.0-only"
 description = "basic USB driver. So far just a wrapper for `rusb`. Planning on wrapping `libusb` later"
+readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
@@ -17,7 +18,7 @@ winusb = ["winapi/winusb", "std"]
 
 winapi = {version = "0.3.8", default_features = false, optional = true}
 libc = {version = "0.2", default_features = false, optional = true}
-libusb1-sys = {version = "0.4.2", default_features = false, optional = true}
+libusb1-sys = {version = "0.5", default_features = false, optional = true}
 futures-util = {version = "0.3.8", default_features = false}
 
 # Planning on removing depenences from driver_async
