@@ -266,6 +266,9 @@ impl SingleTransferDevice {
     pub fn device(&self) -> &AsyncDevice {
         &self.device
     }
+    pub fn device_mut(&mut self) -> &mut AsyncDevice {
+        &mut self.device
+    }
     pub fn buf_clear(&mut self) {
         self.transfer.buf.clear();
     }
