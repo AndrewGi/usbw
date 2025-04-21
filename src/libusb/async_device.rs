@@ -224,6 +224,7 @@ impl InactiveTransfer {
         data: &[u8],
         setup: ControlSetup,
     ) -> SafeTransfer<&mut [u8], &mut Transfer, &mut SafeTransferAsyncLink> {
+        self.transfer.set_type(TransferType::Control);
         self.buf.resize(data.len() + ControlSetup::SIZE, 0_u8);
         setup.serialize(self.buf.as_mut_slice());
         self.buf.as_mut_slice()[ControlSetup::SIZE..].copy_from_slice(data);
@@ -311,6 +312,7 @@ impl SingleTransferDevice {
         data: &[u8],
         timeout: core::time::Duration,
     ) -> Result<usize, Error> {
+        println!("Control write mut");
         let mut transfer = self.transfer.control_transfer(
             data,
             ControlSetup {
@@ -321,6 +323,7 @@ impl SingleTransferDevice {
                 len: data.len().try_into().expect("too much data"),
             },
         );
+        println!("transfer: {:?}", transfer.get_type());
         transfer.set_timeout(timeout);
         // Fill transfer with control parameters
         transfer.submit_write(&self.device).await

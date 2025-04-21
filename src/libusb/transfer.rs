@@ -201,6 +201,7 @@ impl Transfer {
         self.libusb_mut().num_iso_packets = num as i32;
     }
     pub fn is_endpoint_read(&self) -> bool {
+        println!("is_endpoint_read: {:?}", self.libusb_ref().endpoint);
         self.libusb_ref().endpoint & libusb1_sys::constants::LIBUSB_ENDPOINT_DIR_MASK
             != libusb1_sys::constants::LIBUSB_ENDPOINT_OUT
     }
@@ -257,7 +258,11 @@ impl Transfer {
     /// The transfer status and pointers could cause memory to be read and write. Memory Safety
     /// isn't guaranteed for this struct
     pub unsafe fn submit(&self) -> Result<(), Error> {
-        try_unsafe!(libusb1_sys::libusb_submit_transfer(self.0.as_ptr()));
+        unsafe {
+            let v = libusb1_sys::libusb_submit_transfer(self.0.as_ptr());
+            println!("submit: {:?}", v);
+            try_unsafe!(v);
+        }
         Ok(())
     }
     /// # Safety

@@ -34,9 +34,7 @@ pub fn bluetooth_adapters<'a>(
 }
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
+    let runtime = tokio::runtime::Runtime::new()
         .expect("can't make async runtime");
     runtime.block_on(main_async())?;
     Ok(())
@@ -56,7 +54,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         let device = devices
             .next()
             .ok_or_else(|| String::from("Device Not Found"))??;
-        println!("using {:?}", device);
+        println!("using {:?}", device.device_descriptor()?);
         match device.open() {
             Ok(adapter) => break adapter,
             Err(usbw::libusb::error::Error::NotSupported) => (),

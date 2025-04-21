@@ -114,7 +114,7 @@ impl Context {
                 0
             } else {
                 // Drop the closure because we're done now
-                unsafe { Box::from_raw(closure) };
+                unsafe { drop(Box::from_raw(closure)) };
                 1
             }
         }

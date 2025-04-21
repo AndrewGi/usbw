@@ -17,7 +17,7 @@ impl UserData {
         debug_assert_eq!(self.is_active.load(Ordering::SeqCst), true);
         self.is_active.store(false, Ordering::SeqCst);
         // Ignore if receiver is dropped
-        self.sender.try_send(()).ok();
+        self.sender.try_send(()).unwrap();
     }
 }
 
@@ -88,6 +88,7 @@ impl<Buf, Trans: BorrowMut<Transfer>, Link: BorrowMut<SafeTransferAsyncLink>>
         let user_data = unsafe { transfer.cast_userdata_ref::<UserData>() };
         // Signal completion
         user_data.send_completion();
+        println!("Done");
     }
     pub fn is_active(&self) -> bool {
         self.link
@@ -128,7 +129,8 @@ impl<Buf, Trans: BorrowMut<Transfer>, Link: BorrowMut<SafeTransferAsyncLink>>
     }
     async fn wait_for_inactive(&mut self) {
         if self.is_active() {
-            self.wait_for_receiver().await
+            self.wait_for_receiver().await;
+            println!("IS_ACTIVE_WAITING: {:?}", self.is_active());
         }
     }
     fn sync_wait_for_cancel(&mut self) -> Result<(), Error> {
@@ -268,14 +270,19 @@ impl<Buf: AsRef<[u8]>, Trans: BorrowMut<Transfer>, Link: BorrowMut<SafeTransferA
         }
     }
     fn submit_asynchronously(&self, is_read: bool) -> Result<(), Error> {
+        println!("{:?}", self.transfer.borrow().get_type());
         self.check_transfer(is_read)?;
+        
+        println!("Submitting 2");
         self.set_active(true);
+        println!("active: {:?}", self.link.borrow().user_data.is_active.load(Ordering::SeqCst));
         // Send the transfer off
         match unsafe { self.transfer.borrow().submit() } {
             Ok(_) => Ok(()),
             Err(e) => {
                 // ensure its set to inactive
                 self.set_active(false);
+                println!("Error submitting transfer: {:?}", e);
                 Err(e)
             }
         }
@@ -287,11 +294,14 @@ impl<Buf: AsRef<[u8]>, Trans: BorrowMut<Transfer>, Link: BorrowMut<SafeTransferA
             .set_device(device_handle.handle_ref());
 
         // Submit
+        println!("Submitting 1 {:?}", is_read);
         self.submit_asynchronously(is_read)?;
         // Wait for completion
+        println!("Waiting 1");
         self.wait_for_inactive().await;
         // Set to inactive
         debug_assert_eq!(self.is_active(), false, "transfer still active");
+        
         // Return actual data transferred length
         self.transfer
             .borrow()
